@@ -1,0 +1,155 @@
+﻿@page
+@model DashClientModel
+@{
+    ViewData["Title"] = "DashClient";
+}
+@section Scripts
+{
+    <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.14.2/js/msal-browser.min.js"></script>
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.2.1.min.js"></script>
+    <script src="https://cdn.dashjs.org/v3.1.0/dash.all.debug.js"></script>
+
+    <script class="code">
+        function init() {
+            var dashUrl = window.localStorage.getItem("dashUrl");
+            $("#dashUrl").val(dashUrl)
+        }
+
+        function startVideo() {
+
+            var token = window.localStorage.getItem("Token");
+            var textUrl = $("#dashUrl").val();
+
+            if (!textUrl) {
+                return;
+            }
+
+            window.localStorage.setItem("dashUrl", textUrl);
+
+            var video,
+                player,
+                url = textUrl;
+
+            video = document.querySelector("video");
+            player = dashjs.MediaPlayer().create();
+
+            /* Extend RequestModifier class and implement our own behaviour */
+            player.extend("RequestModifier", function () {
+                return {
+                    modifyRequestHeader: function (xhr, url) {
+                        var jwtoken = token;
+                        xhr.setRequestHeader('Authorization', 'Bearer ' + jwtoken);
+                        return xhr;
+                    },
+                    modifyRequestURL: function (url) {
+                        /* Modify url adding a custom query string parameter */
+                        return url;
+                    }
+                };
+            });
+            player.initialize(video, url, true);
+        }
+
+        function login() {
+            console.log("Start log, clean current token");
+            window.localStorage.setItem("Token", "");
+            var token = "";
+
+            const msalConfig = {
+                auth: {
+                    clientId: "@Model.ClientId",
+                    authority: "https://login.microsoftonline.com/common"
+                    },
+                cache: {
+                    cacheLocation: "localStorage",
+                    storeAuthStateInCookie: false,
+                }
+            }
+
+            var MSALApp = new msal.PublicClientApplication(msalConfig)
+
+            const accessTokenRequest = {
+                scopes: ["@Model.Scope"]
+            };
+
+            MSALApp
+                .acquireTokenSilent(accessTokenRequest)
+                .then(function (accessTokenResponse) {
+                    console.log("Acquire token silent success");
+                    let accessToken = accessTokenResponse.accessToken;
+                    window.localStorage.setItem("Token", accessToken);
+
+                    startVideo(token);
+                })
+                .catch(function (error) {
+                    console.log("Acquire token silent failure, and send an interactive request");
+                    console.log("Begin send an interactive request");
+                    MSALApp
+                        .acquireTokenPopup(accessTokenRequest)
+                        .then(function (accessTokenResponse) {
+                            // Acquire token interactive success
+                            let accessToken = accessTokenResponse.accessToken;
+                            console.log(accessTokenResponse.expiresOn);
+                            // Call your API with token
+                            window.localStorage.setItem("Token", accessToken);
+                            console.log("Set token");
+
+                            startVideo();
+                        })
+                        .catch(function (error) {
+                            // Acquire token interactive failure
+                            console.log(error);
+                        });
+                    console.log(error);
+                });
+        }
+    </script>
+}
+<style>
+    video {
+        width: 640px;
+        height: 360px;
+    }
+</style>
+
+    <b>
+        <p>Reference dash.js player with AAD auth, use at your own risk.</p>
+        <p>No error handling. Use F12 for debugging.</p>
+    </b>
+
+<div class="container py-4">
+    <header class="pb-3 mb-4 border-bottom">
+    </header>
+    <div class="row">
+        <div class="col-md-1">
+            <p>Dash Url</p>
+        </div>
+        <div class="col-md-8 min-width 150">
+            <input id="dashUrl"style="min-width: 900px;"/>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="h-100 p-5 bg-light border rounded-3">
+                <button id="btnLogin"onclick="login()">Login</button>
+                <button id="play"onclick="startVideo()">PlayVideo</button>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <video controls="true"></video>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div id="code-output"></div>
+        </div>
+    </div>
+    <footer class="pt-3 mt-4 text-muted border-top">
+        &copy; Microsoft
+    </footer>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        init();
+    });
+</script>
