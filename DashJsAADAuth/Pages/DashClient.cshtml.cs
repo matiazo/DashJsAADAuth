@@ -15,7 +15,7 @@ namespace DashJsAADAuth.Pages
             config = configRoot;
 
             ClientId = config["ClientId"];
-            Scope = config["Scope"];
+            Scope = $"api://{ClientId}/.default";
         }
 
         public void OnGet()
